@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/ollama/ollama/api"
@@ -272,7 +273,53 @@ func buildModelEntries(ctx context.Context, client *api.Client, modelList []stri
 				}
 			}
 		}
+		applyOpenCodeReasoning(ctx, client, modelID, entry)
 		models[modelID] = entry
 	}
 	return models
+}
+
+// applyOpenCodeReasoning detects thinking capability and sets reasoning config
+// on the model entry. When the model supports thinking, it sets "reasoning": true
+// and configures variants for the OpenCode TUI:
+//   - GPT-OSS: supports variable effort levels (low/medium/high) and defaults to
+//     medium via options. Thinking cannot be turned off.
+//   - Other models: only support on/off. Disables built-in low/medium/high variants
+//     and adds a "none" variant so users can toggle thinking off via Ctrl+T.
+//
+// When the model does not support thinking, no reasoning config is set.
+func applyOpenCodeReasoning(ctx context.Context, client *api.Client, modelName string, entry map[string]any) {
+	if client == nil {
+		return
+	}
+
+	resp, err := client.Show(ctx, &api.ShowRequest{Model: modelName})
+	if err != nil {
+		return
+	}
+
+	if slices.Contains(resp.Capabilities, model.CapabilityThinking) {
+		entry["reasoning"] = true
+
+		if strings.Contains(modelName, "gpt-oss") {
+			// GPT-OSS models support variable thinking effort levels
+			// and cannot turn thinking off. Keep the built-in
+			// low/medium/high variants as-is and default to medium.
+			options, ok := entry["options"].(map[string]any)
+			if !ok {
+				options = make(map[string]any)
+			}
+			options["reasoningEffort"] = "medium"
+			entry["options"] = options
+		} else {
+			// Most models only support thinking on or off.
+			// Disable the built-in low/medium/high variants and add none.
+			entry["variants"] = map[string]any{
+				"none":   map[string]any{"reasoningEffort": "none"},
+				"low":    map[string]any{"disabled": true},
+				"medium": map[string]any{"disabled": true},
+				"high":   map[string]any{"disabled": true},
+			}
+		}
+	}
 }
