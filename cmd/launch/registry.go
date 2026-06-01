@@ -33,7 +33,7 @@ type IntegrationInfo struct {
 	Description string
 }
 
-var launcherIntegrationOrder = []string{"claude", "codex-app", "hermes", "openclaw", "opencode", "codex", "copilot", "droid", "pi", "pool"}
+var launcherIntegrationOrder = []string{"claude", "codex-app", "hermes", "openclaw", "opencode", "codex", "copilot", "omp", "droid", "pi", "pool"}
 
 var integrationSpecs = []*IntegrationSpec{
 	{
@@ -151,6 +151,18 @@ var integrationSpecs = []*IntegrationSpec{
 				return ok
 			},
 			URL: "https://opencode.ai",
+		},
+	},
+	{
+		Name:        "omp",
+		Runner:      &OMP{},
+		Description: "AI coding agent with IDE integration",
+		Install: IntegrationInstallSpec{
+			CheckInstalled: func() bool {
+				_, err := (&OMP{}).findPath()
+				return err == nil
+			},
+			URL: "https://omp.sh",
 		},
 	},
 	{
